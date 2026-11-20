@@ -1,0 +1,15 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: yogeshbatch2svc
+  namespace: yogeshbatch2demo
+  labels:
+    application: batch2monitoringapp
+spec:
+  type: NodePort
+  selector:
+    application: batch2monitoringapp
+  ports:
+    - port: 5000
+      targetPort: 5000
+      nodePort: 30100

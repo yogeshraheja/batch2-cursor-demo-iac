@@ -1,0 +1,108 @@
+---
+- name: Deploy batch2 cursor monitoring application
+  hosts: app_servers
+  become: true
+  gather_facts: true
+
+  tasks:
+    - name: Update apt cache
+      ansible.builtin.apt:
+        update_cache: true
+        cache_valid_time: 3600
+      when: ansible_os_family == "Debian"
+
+    - name: Install required packages
+      ansible.builtin.package:
+        name: "{{ app_packages }}"
+        state: present
+
+    - name: Install python3-venv on Debian family
+      ansible.builtin.package:
+        name: python3-venv
+        state: present
+      when: ansible_os_family == "Debian"
+
+    - name: Ensure application install directory exists
+      ansible.builtin.file:
+        path: "{{ app_install_dir }}"
+        state: directory
+        owner: root
+        group: root
+        mode: "0755"
+
+    - name: Clone monitoring application repository
+      ansible.builtin.git:
+        repo: "{{ app_repo_url }}"
+        dest: "{{ app_install_dir }}"
+        version: "{{ app_repo_version }}"
+        force: true
+        update: true
+
+    - name: Create Python virtual environment
+      ansible.builtin.command:
+        cmd: python3 -m venv {{ app_install_dir }}/.venv
+        creates: "{{ app_install_dir }}/.venv/bin/python"
+
+    - name: Install Python dependencies into virtual environment
+      ansible.builtin.pip:
+        requirements: "{{ app_install_dir }}/requirements.txt"
+        virtualenv: "{{ app_install_dir }}/.venv"
+        virtualenv_command: python3 -m venv
+        extra_args: "--default-timeout=100"
+      register: app_pip_install
+      retries: 3
+      delay: 10
+      until: app_pip_install is succeeded
+
+    - name: Generate ADMIN_PASSWORD_HASH from demo password
+      ansible.builtin.command:
+        argv:
+          - "{{ app_install_dir }}/.venv/bin/python"
+          - "{{ app_install_dir }}/scripts/generate_password_hash.py"
+          - "{{ app_admin_password }}"
+      register: app_password_hash_result
+      changed_when: false
+      no_log: true
+
+    - name: Set admin password hash fact
+      ansible.builtin.set_fact:
+        app_admin_password_hash: "{{ app_password_hash_result.stdout | trim }}"
+      no_log: true
+
+    - name: Deploy application environment file
+      ansible.builtin.template:
+        src: ../templates/monitoring-app.env.j2
+        dest: "/etc/{{ app_service_name }}.env"
+        owner: root
+        group: root
+        mode: "0600"
+      notify: Restart monitoring application
+
+    - name: Deploy systemd unit for monitoring application
+      ansible.builtin.template:
+        src: ../templates/monitoring-app.service.j2
+        dest: "/etc/systemd/system/{{ app_service_name }}.service"
+        owner: root
+        group: root
+        mode: "0644"
+      notify: Restart monitoring application
+
+    - name: Enable and start monitoring application service
+      ansible.builtin.systemd:
+        name: "{{ app_service_name }}"
+        enabled: true
+        state: started
+        daemon_reload: true
+
+    - name: Wait for application to listen on port {{ app_port }}
+      ansible.builtin.wait_for:
+        host: 127.0.0.1
+        port: "{{ app_port }}"
+        timeout: 60
+
+  handlers:
+    - name: Restart monitoring application
+      ansible.builtin.systemd:
+        name: "{{ app_service_name }}"
+        state: restarted
+        daemon_reload: true

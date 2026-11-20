@@ -1,0 +1,22 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: yogeshbatch2dep
+  namespace: yogeshbatch2demo
+  labels:
+    application: batch2monitoringapp
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      application: batch2monitoringapp
+  template:
+    metadata:
+      labels:
+        application: batch2monitoringapp
+    spec:
+      containers:
+        - name: batch2monitoring
+          image: yogeshraheja/cursor-monitoring:latest
+          ports:
+            - containerPort: 5000

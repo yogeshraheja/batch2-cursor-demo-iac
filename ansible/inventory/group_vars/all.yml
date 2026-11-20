@@ -1,0 +1,18 @@
+---
+# Application source
+app_repo_url: https://github.com/yogeshraheja/batch2_cursor_monitoring_application.git
+app_repo_version: main
+app_install_dir: /opt/monitoring_app
+app_port: 5100
+app_service_name: monitoring-app
+
+# Demo admin credentials (used to generate ADMIN_PASSWORD_HASH on the host)
+app_admin_username: admin
+app_admin_password: ChangeMe123!
+app_secret_key: change-me-demo-secret
+
+# OS packages (ansible.builtin.package resolves the correct package manager)
+app_packages:
+  - git
+  - python3
+  - python3-pip
